@@ -94,7 +94,8 @@ PROJECT.md               questo file
 ## Stato della classificazione locale
 
 - **Fatto e testato (con embedder finto):** testo, profili cartella, punteggi, decisione, valutazione, soglie di accettazione. I test provano la **logica**, non la qualità del modello vero.
-- **Scritto, non ancora misurato:** embedder vero (`transformers-embedder.ts`, `multilingual-e5-small` quantizzato q8), script di download con revisione fissa, test con il modello vero, prova nel browser. Diventano "verificati" solo dopo un'esecuzione riuscita in CI con i numeri letti dalle annotazioni.
+- **Misurato in CI, in Node (corpus sintetico di 24 preferiti + 48 per il "nascondi e ritrova"):** caricamento ~1,7 s, ~4,5 ms per testo; prima scelta 87,5% e tra le prime 3 100% sull'inbox; "nascondi e ritrova" 91,7% / 97,9%, assegnati con sicurezza 21 su 21 corretti ma copertura solo 43,8% con le soglie iniziali. Sono **dati inventati**: dicono che la pipeline funziona, non la qualità sui preferiti reali. I punteggi sono compressi (es. 0,81 tra testi italiani affini contro 0,80 tra non affini): la calibrazione delle soglie sui dati veri è indispensabile.
+- **Embedder nel browser (WASM) sotto la CSP dell'app:** prima prova **fallita** perché `connect-src` non includeva `'self'` (modello bloccato). Corretto; in attesa della nuova prova. Se servirà anche `wasm-unsafe-eval` si aggiunge solo dopo averne visto la violazione.
 - **Non ancora fatto:** proposta di nuove cartelle, collegamento alla schermata, cache degli embedding, "Da rivedere".
 - **Parametri del matcher** (`DEFAULT_MATCHER_OPTIONS`: `nameWeight` 0,35, `exampleK` 3, `minScore` 0,8, `minMargin` 0,02) sono **valori iniziali non misurati**: vanno calibrati con la valutazione sui dati veri dell'utente. Non presentarli come ottimizzati.
 - **Valutazione "nascondi e ritrova"**: cartelle disordinate la rendono pessimista, preferiti già ordinati la rendono più ottimista dell'inbox vera. Da leggere insieme al controllo manuale sui ~100 elementi reali. Il rapporto non deve mai contenere titoli, URL o nomi di cartella (c'è un test).
@@ -111,7 +112,7 @@ PROJECT.md               questo file
 
 - La CI scarica il modello, esegue i test con il modello vero e la prova nel browser, e pubblica i risultati come **annotazioni** (`scripts/ci-annotate.mjs`) e come artefatto `measurements` (`results/model-quality.json`, `results/browser-smoke.json`). Da qui i log completi non sono leggibili, le annotazioni sì.
 - I corpus usati sono **sintetici**: i numeri dicono se la pipeline funziona, non quanto sarà buona sui preferiti dell'utente.
-- `sha256` dei file del modello: non ancora fissati nel manifesto (la CI stampa gli hash scaricati). Da fissare dopo la prima esecuzione riuscita.
+- `sha256` dei file del modello: fissati nel manifesto con gli hash calcolati dalla CI al primo download (fiducia al primo uso, a revisione fissa di Hugging Face); da ora lo script rifiuta file diversi. Il file del modello pesa 118.308.185 byte (misurato): è la parte principale della crescita dell'installer.
 - La CSP in `src-tauri/tauri.conf.json` è la stessa usata nella prova nel browser: se il modello richiede permessi in più (es. `wasm-unsafe-eval`), la prova lo segnala come violazione e va corretta lì.
 
 ## Come si verifica (per le sessioni AI)
