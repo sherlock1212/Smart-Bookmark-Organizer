@@ -63,8 +63,15 @@ src/
     parse-local-state.ts elenco profili da "Local State"   (funzione pura)
     parse-bookmarks.ts   albero e preferiti da "Bookmarks" (funzione pura)
     bridge.ts            chiamate ai comandi Rust (invoke)
+  classify/
+    vector.ts            operazioni su vettori normalizzati
+    text.ts              testo che rappresenta un preferito / una cartella (titolo, dominio, parole dell'URL)
+    embedder.ts          interfaccia Embedder + embedMany (lotti, senza ripetizioni, annullabile)
+    profiles.ts          profilo di ogni cartella: nome + fino a 12 esempi scelti in modo deterministico
+    matcher.ts           punteggio per cartella, decisione assegna/incerto, classifyItems
+    evaluation.ts        valutazione "nascondi e ritrova" (solo numeri aggregati) + soglie di accettazione
   ui/setup-screen.ts     schermata: profilo, inbox, riepilogo (DOM, mai innerHTML)
-  test-fixtures/         file di prova nel formato Chromium (solo test)
+  test-fixtures/         file di prova: formato Chromium, embedder finto (hashing), corpus a temi
 src-tauri/
   src/brave.rs           lettura sola lettura dei file di Brave (solo std, con test)
   src/lib.rs             comandi Tauri: brave_data_dir, brave_read_local_state, brave_read_bookmarks
@@ -83,6 +90,15 @@ PROJECT.md               questo file
 - **Cartelle vuote:** restano destinazioni valide; il conteggio è mostrato. Se escluderle o no lo decide il passo di classificazione.
 - **Non ancora salvate:** scelta del profilo e dell'inbox si perdono alla chiusura (arriveranno con il modulo `store`).
 - **Interfaccia:** niente `innerHTML`; testo sempre inserito come testo (c'è un test).
+
+## Stato della classificazione locale
+
+- **Fatto e testato (con embedder finto):** testo, profili cartella, punteggi, decisione, valutazione, soglie di accettazione. I test provano la **logica**, non la qualità del modello vero.
+- **Non ancora fatto:** embedder vero (modello multilingue in locale), proposta di nuove cartelle, collegamento alla schermata, cache degli embedding, "Da rivedere".
+- **Parametri del matcher** (`DEFAULT_MATCHER_OPTIONS`: `nameWeight` 0,35, `exampleK` 3, `minScore` 0,8, `minMargin` 0,02) sono **valori iniziali non misurati**: vanno calibrati con la valutazione sui dati veri dell'utente. Non presentarli come ottimizzati.
+- **Valutazione "nascondi e ritrova"**: cartelle disordinate la rendono pessimista, preferiti già ordinati la rendono più ottimista dell'inbox vera. Da leggere insieme al controllo manuale sui ~100 elementi reali. Il rapporto non deve mai contenere titoli, URL o nomi di cartella (c'è un test).
+- **Modelli candidati** (licenze verificate sulle schede ufficiali): `intfloat/multilingual-e5-small` (MIT, include italiano e inglese; richiede il prefisso `query: `) e `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (Apache-2.0, italiano e inglese). Le conversioni ONNX di Xenova non dichiarano la licenza: valgono quelle dei modelli originali. Dimensioni dei file e qualità: **non verificate**.
+- **Rete di sviluppo:** da questo ambiente Hugging Face non è raggiungibile (403 dal proxy), quindi il modello va scaricato dalla CI. I log completi della CI non sono leggibili da qui; le **annotazioni** sì (`gh api .../check-runs/<id>/annotations`): usarle per far emergere risultati e fallimenti.
 
 ## Dipendenze di sviluppo aggiunte
 
@@ -103,7 +119,7 @@ PROJECT.md               questo file
 ## Ordine di lavoro
 
 1. **Fatto e verificato in CI:** scheletro Tauri + build automatica dell'installer.
-2. **Scritto, test passati; da provare sul computer dell'utente:** lettura profili Brave e scelta cartella inbox.
+2. **Fatto e provato dall'utente su Brave reale (più profili, Brave aperto, sync attivo):** lettura profili Brave e scelta cartella inbox.
 3. Embedding e smistamento locale (test su cartelle già ordinate e sui ~100 elementi reali).
 4. Recupero pagine e controllo link.
 5. Gemini: chiave, elenco modelli, consenso, budget, anteprima dati inviati.
