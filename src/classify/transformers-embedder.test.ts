@@ -55,15 +55,28 @@ beforeEach(() => {
 });
 
 describe("createTransformersEmbedder", () => {
-  it("configura la libreria per lavorare solo in locale", async () => {
+  it("via HTTP (browser) l'unico 'remoto' ammesso è la cartella dell'app stessa, mai Hugging Face", async () => {
     await createTransformersEmbedder(config);
     expect(state.env).toMatchObject({
-      allowRemoteModels: false,
+      allowRemoteModels: true,
       allowLocalModels: true,
       localModelPath: "http://app.local/models/",
+      remoteHost: "http://app.local/models/",
+      remotePathTemplate: "{model}/",
       useBrowserCache: false,
       useWasmCache: false,
     });
+    expect(String(state.env["remoteHost"])).not.toContain("huggingface");
+  });
+
+  it("con percorsi su disco (Node) la rete è disattivata", async () => {
+    await createTransformersEmbedder({ ...config, localModelPath: "/data/models/", wasmPaths: undefined });
+    expect(state.env["allowRemoteModels"]).toBe(false);
+    expect(state.env["localModelPath"]).toBe("/data/models/");
+  });
+
+  it("configura i file WASM locali e un solo thread", async () => {
+    await createTransformersEmbedder(config);
     expect(state.env.backends.onnx.wasm).toEqual({
       wasmPaths: { mjs: "http://app.local/ort/a.mjs", wasm: "http://app.local/ort/a.wasm" },
       numThreads: 1,

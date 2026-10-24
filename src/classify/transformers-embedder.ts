@@ -44,9 +44,21 @@ export async function createTransformersEmbedder(
   const transformers = await import("@huggingface/transformers");
   const { env } = transformers;
 
-  env.allowRemoteModels = false;
   env.allowLocalModels = true;
   env.localModelPath = config.localModelPath;
+  if (/^https?:\/\//i.test(config.localModelPath)) {
+    // Browser/WebView: i file del modello sono serviti via HTTP dalla STESSA origine dell'app.
+    // La libreria controlla l'esistenza dei file del tokenizer solo come percorso su disco
+    // oppure come "remoto" (mai come indirizzo HTTP locale), quindi dichiariamo "remota" la
+    // cartella dell'app stessa: l'indirizzo che ne risulta coincide con quello locale.
+    // Nessun altro host è raggiungibile: remoteHost non è mai Hugging Face, e la CSP dell'app
+    // ammette solo la stessa origine (la prova nel browser verifica che non partano richieste esterne).
+    env.allowRemoteModels = true;
+    env.remoteHost = config.localModelPath;
+    env.remotePathTemplate = "{model}/";
+  } else {
+    env.allowRemoteModels = false; // Node: percorsi su disco, nessun accesso alla rete
+  }
   env.useBrowserCache = false; // niente copie nascoste dei modelli nella cache del browser
   env.useWasmCache = false; // evita URL blob: (non ammessi dalla CSP dell'app)
 
