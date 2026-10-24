@@ -8,12 +8,24 @@ const state = vi.hoisted(() => ({
     backends: { onnx: { wasm: {} as Record<string, unknown> } },
   } as Record<string, any>,
   pipeline: vi.fn(),
+  loadTokenizer: vi.fn(),
+  loadModel: vi.fn(),
+  extractorArgs: undefined as Record<string, unknown> | undefined,
   extractor: vi.fn(),
 }));
 
 vi.mock("@huggingface/transformers", () => ({
   env: state.env,
+  // pipeline() NON deve essere usata (vedi transformers-embedder.ts): se lo fosse, i test falliscono.
   pipeline: state.pipeline,
+  AutoTokenizer: { from_pretrained: state.loadTokenizer },
+  AutoModel: { from_pretrained: state.loadModel },
+  FeatureExtractionPipeline: class {
+    constructor(args: Record<string, unknown>) {
+      state.extractorArgs = args;
+      return state.extractor as unknown as object;
+    }
+  },
 }));
 
 import { createTransformersEmbedder } from "./transformers-embedder";
@@ -28,11 +40,18 @@ const config: TransformersEmbedderConfig = {
   wasmPaths: { mjs: "http://app.local/ort/a.mjs", wasm: "http://app.local/ort/a.wasm" },
 };
 
+const fakeTokenizer = { name: "tokenizer" };
+const fakeModel = { name: "model" };
+
 beforeEach(() => {
   state.env.backends.onnx.wasm = {};
   state.pipeline.mockReset();
+  state.loadTokenizer.mockReset();
+  state.loadModel.mockReset();
   state.extractor.mockReset();
-  state.pipeline.mockResolvedValue(state.extractor);
+  state.extractorArgs = undefined;
+  state.loadTokenizer.mockResolvedValue(fakeTokenizer);
+  state.loadModel.mockResolvedValue(fakeModel);
 });
 
 describe("createTransformersEmbedder", () => {
@@ -56,9 +75,25 @@ describe("createTransformersEmbedder", () => {
     expect(state.env.backends.onnx.wasm).toEqual({});
   });
 
-  it("crea la pipeline di estrazione con modello e precisione indicati", async () => {
+  it("carica tokenizer e modello indicati, con la precisione indicata", async () => {
     await createTransformersEmbedder(config);
-    expect(state.pipeline).toHaveBeenCalledWith("feature-extraction", "org/model", { dtype: "q8" });
+    expect(state.loadTokenizer).toHaveBeenCalledWith("org/model", {});
+    expect(state.loadModel).toHaveBeenCalledWith("org/model", { dtype: "q8" });
+  });
+
+  it("passa SEMPRE il tokenizer all'estrattore e non usa pipeline() (sonda di esistenza difettosa via HTTP)", async () => {
+    await createTransformersEmbedder(config);
+    expect(state.pipeline).not.toHaveBeenCalled();
+    expect(state.extractorArgs).toEqual({
+      task: "feature-extraction",
+      model: fakeModel,
+      tokenizer: fakeTokenizer,
+    });
+  });
+
+  it("rifiuta un tokenizer mancante invece di proseguire senza", async () => {
+    state.loadTokenizer.mockResolvedValue(null);
+    await expect(createTransformersEmbedder(config)).rejects.toThrow(/tokenizer o modello non caricati/);
   });
 
   it("espone id con revisione e precisione, e le dimensioni", async () => {
@@ -103,7 +138,7 @@ describe("createTransformersEmbedder", () => {
   });
 
   it("se il modello non si carica dà un messaggio comprensibile con il rimedio", async () => {
-    state.pipeline.mockRejectedValue(new Error("file non trovato"));
+    state.loadModel.mockRejectedValue(new Error("file non trovato"));
     await expect(createTransformersEmbedder(config)).rejects.toThrow(/file non trovato.*npm run assets/);
   });
 });

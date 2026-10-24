@@ -20,11 +20,15 @@ type Extractor = (
   options: { pooling: "mean"; normalize: boolean },
 ) => Promise<{ data: ArrayLike<number>; dims: number[] }>;
 
-type PipelineFactory = (
-  task: string,
-  model: string,
-  options: Record<string, unknown>,
-) => Promise<Extractor>;
+interface PretrainedLoader {
+  from_pretrained(modelId: string, options: Record<string, unknown>): Promise<unknown>;
+}
+
+type ExtractorClass = new (args: {
+  task: string;
+  model: unknown;
+  tokenizer: unknown;
+}) => Extractor;
 
 /**
  * Crea l'embedder locale basato su transformers.js.
@@ -53,10 +57,25 @@ export async function createTransformersEmbedder(
     wasm.numThreads = 1;
   }
 
-  const createPipeline = transformers.pipeline as unknown as PipelineFactory;
+  // Tokenizer e modello si caricano direttamente, NON con pipeline(): pipeline() decide se
+  // caricare il tokenizer con una sonda di esistenza che, per file serviti via HTTP (il caso del
+  // browser/WebView), non trova mai nulla e omette il tokenizer senza errore. Provato in CI:
+  // "this.tokenizer is not a function" nel browser, mentre in Node (percorsi su disco) andava.
+  // Usiamo lo stesso codice in Node e nel browser, così i test con il modello vero in Node
+  // coprono anche questo percorso.
+  const AutoTokenizer = transformers.AutoTokenizer as unknown as PretrainedLoader;
+  const AutoModel = transformers.AutoModel as unknown as PretrainedLoader;
+  const FeatureExtraction = transformers.FeatureExtractionPipeline as unknown as ExtractorClass;
   let extractor: Extractor;
   try {
-    extractor = await createPipeline("feature-extraction", config.modelId, { dtype: config.dtype });
+    const [tokenizer, model] = await Promise.all([
+      AutoTokenizer.from_pretrained(config.modelId, {}),
+      AutoModel.from_pretrained(config.modelId, { dtype: config.dtype }),
+    ]);
+    if (!tokenizer || !model) {
+      throw new Error("tokenizer o modello non caricati");
+    }
+    extractor = new FeatureExtraction({ task: "feature-extraction", model, tokenizer });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(
