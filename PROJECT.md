@@ -94,15 +94,25 @@ PROJECT.md               questo file
 ## Stato della classificazione locale
 
 - **Fatto e testato (con embedder finto):** testo, profili cartella, punteggi, decisione, valutazione, soglie di accettazione. I test provano la **logica**, non la qualità del modello vero.
-- **Non ancora fatto:** embedder vero (modello multilingue in locale), proposta di nuove cartelle, collegamento alla schermata, cache degli embedding, "Da rivedere".
+- **Scritto, non ancora misurato:** embedder vero (`transformers-embedder.ts`, `multilingual-e5-small` quantizzato q8), script di download con revisione fissa, test con il modello vero, prova nel browser. Diventano "verificati" solo dopo un'esecuzione riuscita in CI con i numeri letti dalle annotazioni.
+- **Non ancora fatto:** proposta di nuove cartelle, collegamento alla schermata, cache degli embedding, "Da rivedere".
 - **Parametri del matcher** (`DEFAULT_MATCHER_OPTIONS`: `nameWeight` 0,35, `exampleK` 3, `minScore` 0,8, `minMargin` 0,02) sono **valori iniziali non misurati**: vanno calibrati con la valutazione sui dati veri dell'utente. Non presentarli come ottimizzati.
 - **Valutazione "nascondi e ritrova"**: cartelle disordinate la rendono pessimista, preferiti già ordinati la rendono più ottimista dell'inbox vera. Da leggere insieme al controllo manuale sui ~100 elementi reali. Il rapporto non deve mai contenere titoli, URL o nomi di cartella (c'è un test).
 - **Modelli candidati** (licenze verificate sulle schede ufficiali): `intfloat/multilingual-e5-small` (MIT, include italiano e inglese; richiede il prefisso `query: `) e `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (Apache-2.0, italiano e inglese). Le conversioni ONNX di Xenova non dichiarano la licenza: valgono quelle dei modelli originali. Dimensioni dei file e qualità: **non verificate**.
 - **Rete di sviluppo:** da questo ambiente Hugging Face non è raggiungibile (403 dal proxy), quindi il modello va scaricato dalla CI. I log completi della CI non sono leggibili da qui; le **annotazioni** sì (`gh api .../check-runs/<id>/annotations`): usarle per far emergere risultati e fallimenti.
 
-## Dipendenze di sviluppo aggiunte
+## Dipendenze aggiunte (con motivazione)
 
-- `jsdom`: solo per i test dell'interfaccia (simula il DOM). Non entra nell'app finale.
+- `jsdom` (sviluppo): solo per i test dell'interfaccia (simula il DOM). Non entra nell'app finale.
+- `@huggingface/transformers` (app): esegue il modello di embedding in locale (ONNX/WASM) dentro l'interfaccia. Configurata per non fare richieste a Internet (`allowRemoteModels = false`, file WASM serviti in locale, nessuna cache nascosta). Il modello si scarica con `npm run assets` a una revisione fissa (`scripts/model-manifest.json`) e viene incluso nell'installer.
+- `playwright-core` (sviluppo): solo per la prova nel browser in CI (`scripts/browser-smoke.mjs`): verifica che il modello giri in WASM sotto la stessa CSP dell'app e che non parta nessuna richiesta esterna. Usa il Chrome già presente sul runner; non scarica browser.
+
+## Misure in CI (come leggerle)
+
+- La CI scarica il modello, esegue i test con il modello vero e la prova nel browser, e pubblica i risultati come **annotazioni** (`scripts/ci-annotate.mjs`) e come artefatto `measurements` (`results/model-quality.json`, `results/browser-smoke.json`). Da qui i log completi non sono leggibili, le annotazioni sì.
+- I corpus usati sono **sintetici**: i numeri dicono se la pipeline funziona, non quanto sarà buona sui preferiti dell'utente.
+- `sha256` dei file del modello: non ancora fissati nel manifesto (la CI stampa gli hash scaricati). Da fissare dopo la prima esecuzione riuscita.
+- La CSP in `src-tauri/tauri.conf.json` è la stessa usata nella prova nel browser: se il modello richiede permessi in più (es. `wasm-unsafe-eval`), la prova lo segnala come violazione e va corretta lì.
 
 ## Come si verifica (per le sessioni AI)
 

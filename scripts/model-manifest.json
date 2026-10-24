@@ -1,0 +1,15 @@
+{
+  "modelId": "Xenova/multilingual-e5-small",
+  "revision": "761b726dd34fb83930e26aab4e9ac3899aa1fa78",
+  "license": "MIT (modello originale intfloat/multilingual-e5-small)",
+  "dtype": "q8",
+  "prefix": "query: ",
+  "dimensions": 384,
+  "files": [
+    { "path": "config.json" },
+    { "path": "tokenizer.json" },
+    { "path": "tokenizer_config.json" },
+    { "path": "special_tokens_map.json" },
+    { "path": "onnx/model_quantized.onnx" }
+  ]
+}

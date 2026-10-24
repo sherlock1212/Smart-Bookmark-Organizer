@@ -26,11 +26,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run frontend tests
+      - name: Cache embedding model
+        uses: actions/cache@v4
+        with:
+          path: public/models
+          key: model-${{ hashFiles('scripts/model-manifest.json') }}
+
+      - name: Download embedding model
+        run: npm run assets
+
+      - name: Run frontend tests (include i test con il modello vero)
         run: npm test
 
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build browser smoke page
+        run: npx vite build -c vite.smoke.config.ts
+
+      - name: Browser smoke test (modello in WASM con la CSP dell'app)
+        run: node scripts/browser-smoke.mjs
+
+      - name: Show measured results as annotations
+        if: always()
+        run: node scripts/ci-annotate.mjs
+
+      - name: Upload measurement results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: measurements
+          path: results/
+          if-no-files-found: ignore
 
       - name: Build installer
         run: npx tauri build

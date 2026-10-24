@@ -8,3 +8,6 @@ src-tauri/gen/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+public/models/
+dist-smoke/
+results/
