@@ -48,3 +48,30 @@ details ul {
   max-height: 10rem;
   overflow: auto;
 }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+}
+
+progress {
+  width: 100%;
+}
+
+.ok {
+  color: #15803d;
+}
+
+button {
+  font: inherit;
+  padding: 0.35rem 0.9rem;
+}

@@ -6,7 +6,10 @@ import {
 } from "../bookmarks/inbox";
 import type { BookmarkTree, BraveProfile } from "../bookmarks/types";
 import { parseBookmarksFile } from "../brave/parse-bookmarks";
+import type { Embedder } from "../classify/embedder";
 import { errorMessage } from "../errors";
+import { h, plural } from "./dom";
+import { mountSortPanel } from "./sort-panel";
 
 /** Dipendenze esterne della schermata: sostituibili nei test. */
 export interface SetupDeps {
@@ -15,25 +18,11 @@ export interface SetupDeps {
   listProfiles: () => Promise<BraveProfile[]>;
   loadProfileBookmarks: (profileDir: string) => Promise<BookmarkTree>;
   readFileText: (file: File) => Promise<string>;
+  /** Crea l'embedder (carica il modello); chiamato solo quando si avvia la classificazione. */
+  createEmbedder: () => Promise<Embedder>;
 }
 
 const MAX_WARNINGS_SHOWN = 20;
-
-/** Crea un elemento. Il testo è sempre inserito come testo, mai come HTML. */
-function h<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {},
-  ...children: Array<Node | string>
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
-  node.append(...children);
-  return node;
-}
-
-function plural(n: number, singular: string, plural: string): string {
-  return `${n} ${n === 1 ? singular : plural}`;
-}
 
 /**
  * Schermata iniziale: scelta del profilo Brave (o di un file Bookmarks) e della cartella
@@ -96,6 +85,9 @@ export function mountSetupScreen(root: HTMLElement, deps: SetupDeps): void {
   );
   inboxSection.hidden = true;
 
+  const sortSection = h("section", { id: "sort-section" });
+  const sortPanel = mountSortPanel(sortSection, { createEmbedder: deps.createEmbedder });
+
   root.replaceChildren(
     h("h1", {}, "Smart Bookmark Organizer"),
     h(
@@ -108,6 +100,7 @@ export function mountSetupScreen(root: HTMLElement, deps: SetupDeps): void {
       errorLine,
     ),
     inboxSection,
+    sortSection,
   );
 
   // --- aggiornamento della vista ---
@@ -149,9 +142,11 @@ export function mountSetupScreen(root: HTMLElement, deps: SetupDeps): void {
   const renderSummary = (): void => {
     if (!tree || inboxFolderId === null) {
       summary.replaceChildren();
+      sortPanel.setContext(null);
       return;
     }
     const split = splitInbox(tree, inboxFolderId);
+    sortPanel.setContext(split);
     const emptyDestinations = split.destinationFolders.filter(
       (f) => f.totalBookmarkCount === 0,
     ).length;
@@ -185,9 +180,6 @@ export function mountSetupScreen(root: HTMLElement, deps: SetupDeps): void {
     if (split.inbox.length === 0) {
       lines.push(h("p", { class: "warn" }, "Questa cartella non contiene preferiti da smistare."));
     }
-    lines.push(
-      h("p", { class: "hint" }, "Lo smistamento vero e proprio arriva nel prossimo passo di sviluppo."),
-    );
     summary.replaceChildren(...lines);
   };
 

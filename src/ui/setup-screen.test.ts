@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { BookmarkTree, BraveProfile } from "../bookmarks/types";
 import { parseBookmarksFile } from "../brave/parse-bookmarks";
 import { parseLocalState } from "../brave/parse-local-state";
+import { HashingEmbedder } from "../test-fixtures/hashing-embedder";
 import {
   bookmarksFile,
   folderNode,
@@ -29,6 +30,7 @@ function makeDeps(overrides: Partial<SetupDeps> = {}): SetupDeps {
     listProfiles: async () => parseLocalState(sampleLocalState()),
     loadProfileBookmarks: async () => parseBookmarksFile(sampleBookmarks()),
     readFileText: async () => sampleBookmarks(),
+    createEmbedder: async () => new HashingEmbedder(),
     ...overrides,
   };
 }

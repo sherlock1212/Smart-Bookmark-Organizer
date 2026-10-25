@@ -51,6 +51,27 @@ describe("embedMany", () => {
     await expect(embedMany(wrongDims, ["a1"])).rejects.toThrow(/dimensione 2, attesa 3/);
   });
 
+  it("con yieldBetweenBatches cede il controllo al browser tra un lotto e l'altro", async () => {
+    const run = async (yieldBetweenBatches: boolean): Promise<string[]> => {
+      const order: string[] = [];
+      const embedder: Embedder = {
+        id: "x",
+        dimensions: 2,
+        embed: async (texts) => {
+          order.push("lotto");
+          return texts.map(() => Float32Array.from([1, 0]));
+        },
+      };
+      setTimeout(() => order.push("timer"), 0); // l'interfaccia che si ridisegna
+      await embedMany(embedder, ["a1", "b2", "c3"], { batchSize: 1, yieldBetweenBatches });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return order;
+    };
+    expect(await run(true)).toEqual(["lotto", "timer", "lotto", "lotto"]);
+    // Senza l'opzione i lotti si susseguono senza mai lasciare spazio al timer.
+    expect(await run(false)).toEqual(["lotto", "lotto", "lotto", "timer"]);
+  });
+
   it("con nessun testo non chiama l'embedder", async () => {
     const embedder = new HashingEmbedder();
     expect((await embedMany(embedder, [])).size).toBe(0);

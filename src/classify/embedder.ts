@@ -23,7 +23,15 @@ export interface EmbedOptions {
   batchSize?: number;
   onProgress?: (done: number, total: number) => void;
   signal?: AbortSignal;
+  /**
+   * Se vero, dopo ogni lotto si cede il controllo al browser: così l'interfaccia può
+   * ridisegnarsi (avanzamento, pulsante Annulla). Serve perché il modello nel browser
+   * calcola nel thread principale, quindi blocca la pagina per tutta la durata di un lotto.
+   */
+  yieldBetweenBatches?: boolean;
 }
+
+const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 /**
  * Calcola i vettori di molti testi a lotti, senza ripetere testi uguali.
@@ -57,6 +65,7 @@ export async function embedMany(
       result.set(text, normalize(vector));
     });
     options.onProgress?.(Math.min(start + batch.length, unique.length), unique.length);
+    if (options.yieldBetweenBatches) await yieldToEventLoop();
   }
   if (options.signal?.aborted) throw new CancelledError();
   return result;

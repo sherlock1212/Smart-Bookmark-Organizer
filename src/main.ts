@@ -13,4 +13,12 @@ mountSetupScreen(root, {
   listProfiles: loadBraveProfiles,
   loadProfileBookmarks: loadBraveBookmarks,
   readFileText: (file) => file.text(),
+  // Il modello si carica solo quando l'utente avvia la classificazione, non all'avvio dell'app.
+  createEmbedder: async () => {
+    const [{ createTransformersEmbedder }, { appEmbedderConfig }] = await Promise.all([
+      import("./classify/transformers-embedder"),
+      import("./classify/app-embedder-config"),
+    ]);
+    return createTransformersEmbedder(appEmbedderConfig());
+  },
 });
